@@ -11,6 +11,7 @@ extern crate mdp;
 extern crate net2;
 extern crate time;
 extern crate tokio;
+extern crate clap;
 
 use bytes::BytesMut;
 use mdp::protocol::{Protocol, PORT_LINKSTATE};
@@ -22,13 +23,29 @@ use tokio::net::UdpSocket;
 use std::net::SocketAddr as IpSocketAddr;
 use std::time::Duration;
 use futures::{Future, Sink, Stream};
+use clap::{App, Arg};
 
 fn main() {
+    let matches = App::new("mdp-ping test")
+        .version("0.1.0")
+        .author("Josh King <jking@chambana.net>")
+        .about("Start with accompanying mdp-pong on another machine on the same network to send pings back and forth.")
+        .arg(Arg::with_name("ip")
+             .short("a")
+             .long("address")
+             .help("Specify an address:port combination to bind to.")
+             .value_name("IP")
+             .takes_value(true)
+             .required(true))
+        .get_matches();
+
+    let ip = matches.value_of("ip").unwrap();
+
     drop(env_logger::init());
 
-    let a_ip: IpSocketAddr = ("0.0.0.0:4110").parse().unwrap();
+    //let a_ip: IpSocketAddr = (ip).parse().unwrap();
     //    let a_udp = UdpSocket::from_socket(UdpBuilder::new_v4().unwrap().reuse_address(true).unwrap().reuse_port(true).unwrap().bind(a_ip).unwrap(), &handle).unwrap();
-    let a_udp = UdpSocket::bind(&a_ip).unwrap();
+    let a_udp = UdpSocket::bind(&ip.parse().unwrap()).unwrap();
     a_udp.set_broadcast(true).unwrap();
 
     let a_addr = LocalAddr::new();
@@ -76,7 +93,11 @@ fn main() {
     //let timer = Timer::default();
     //let a_routing = timer.interval(Duration::from_secs(5)).for_each(|_| a_routing).map_err(|_| ());
 
-    tokio::spawn(a_protocol.run(Duration::new(1, 0)).then(|_| Ok(())));
-    tokio::spawn(a_routing);
-    tokio::run(a.then(|_| Ok(())));
+    //tokio::spawn(a_protocol.run(Duration::new(1, 0)).then(|_| Ok(())));
+    //tokio::spawn(a_routing);
+    tokio::run({a_protocol.run(Duration::new(1,0)).then(|_| { 
+        tokio::spawn(a_routing);
+     //   tokio::spawn(a);
+        Ok(())
+    })});
 }
